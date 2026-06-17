@@ -56,11 +56,19 @@ class GatewayClient:
         通用请求方法。
         """
         if not self.base_url:
-            raise ValueError("base_url 不能为空，请设置 AIGW_BASE_URL 或实例化时传入 base_url")
+            return{
+                "status_code": None,
+                "headers": {},
+                "content_type": None,
+                "body": None,
+                "uuid": None,
+                "elapsed": 0,
+                "error": "base_url不能为空，请设置AIGW_BASE_URL或实例化时传入base_url"
+            }
 
         url = f"{self.base_url}{path}"
-
         start_time = time.time()
+
         try:
             response = self.session.request(
                 method=method.upper(),
@@ -68,11 +76,12 @@ class GatewayClient:
                 timeout=self.timeout,
                 **kwargs,
             )
-            cost_time = round(time.time() - start_time, 3)
             content_type = response.headers.get("Content-Type")
+            elapsed = round(time.time() - start_time, 2)
+            headers =  dict(response.headers)
 
             try:
-                if "application/json" in content_type:
+                if content_type and "application/json" in content_type:
                     body = response.json()
                 else:
                     body = response.text
@@ -82,30 +91,67 @@ class GatewayClient:
             return {
                 "status_code": response.status_code,
                 "headers": dict(response.headers),
+                "content_type": content_type,
                 "body": body,
-                "text": response.text,
+                "uuid": self._extract_uuid(headers, body),
+                "elapsed": elapsed,
                 "error": None,
             }
 
         except requests.exceptions.Timeout:
-            cost_time = round(time.time() - start_time, 3)
+            elapsed = round(time.time() - start_time, 3)
             return {
                 "status_code": None,
                 "headers": {},
                 "body": {},
-                "text": "",
-                "cost_time": cost_time,
+                "uuid": None,
+                "elapsed": elapsed,
                 "error": "请求超时",
             }
 
         except requests.exceptions.RequestException as e:
+            elapsed = round(time.time() - start_time, 3)
             return {
                 "status_code": None,
                 "headers": {},
-                "body": {},
-                "text": "",
+                "content_type": None,
+                "body": None,
+                "uuid": None,
                 "error": str(e),
             }
+
+    @staticmethod
+    def _extract_uuid(headers:Dict[str,Any], body:Any) -> Optional[str]:
+        """
+        从响应头或响应体中提取请求uuid/trace_id
+        """
+        possible_header_keys = [
+            "uuid",
+            "UUID",
+            "X-Request-Id",
+            "x-request-id",
+            "x-trace-id",
+            "X-Trace-Id",
+            "Trace-Id",
+            "trace-id",
+        ]
+        for key in possible_header_keys:
+            if key in headers:
+                return headers.get(key)
+        if isinstance(body, dict):
+            possible_body_keys = [
+                "uuid",
+                "request_id",
+                "trace_id",
+                "traceid",
+                "requestId",
+            ]
+
+            for key in possible_body_keys:
+                if key in body:
+                    return body.get(key)
+        return None
+
 
     def detect_phone_security(self, text: str) -> Dict[str, Any]:
         """
@@ -181,17 +227,25 @@ class GatewayClient:
         """
         真实接口响应格式适配层。
 
+        注意：
         真实项目中需要根据后端实际返回字段调整这里。
         """
-        body = response.get("body", {})
+        body = response.get("body") or {}
+
+        if not isinstance(body, dict):
+            body = {}
+
+        hits = body.get("hits", [])
 
         return {
             "status_code": response.get("status_code"),
             "is_sensitive": body.get("is_sensitive", False),
             "sensitive_type": body.get("sensitive_type"),
-            "hits": body.get("hits", []),
-            "hit_count": len(body.get("hits", [])),
+            "hits": hits,
+            "hit_count": len(hits),
             "masked_text": body.get("masked_text", ""),
             "message": body.get("message"),
+            "uuid": response.get("uuid"),
+            "elapsed": response.get("elapsed"),
             "error": response.get("error"),
         }
