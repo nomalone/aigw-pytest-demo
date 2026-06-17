@@ -1,0 +1,34 @@
+# python缓存
+*.pyc
+*.pyo
+*.pyd
+
+# python虚拟环境
+.venv/
+ven/
+env/
+
+# pytest缓存
+.pytest_cache/
+
+# Allure测试结果报告
+allure-results/
+allure-report/
+
+# PyCharm配置
+.idea/
+
+# 覆盖率文件
+.coverage
+htmlcov/
+
+# 日志文件
+*.log
+logs/
+
+# 系统文件
+.DS_Store
+Thumvs.db
+
+# 环境变量和敏感配置
+.env

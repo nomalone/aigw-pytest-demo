@@ -1,0 +1,80 @@
+[
+  {
+    "case_id": "phone_plain",
+    "title": "文本中包含一个完整手机号",
+    "marks": ["smoke", "security"],
+    "text": "用户反馈：我的手机号是13800138000，请尽快联系。",
+    "expected": {
+      "status_code": 200,
+      "is_sensitive": true,
+      "sensitive_type": "PHONE",
+      "hit_count": 1,
+      "masked_text_contains": "138****8000"
+    }
+  },
+  {
+    "case_id": "phone_multiple",
+    "title": "文本中包含多个手机号",
+    "marks": ["regression", "security"],
+    "text": "联系人A：13800138000，联系人B：13900139000。",
+    "expected": {
+      "status_code": 200,
+      "is_sensitive": true,
+      "sensitive_type": "PHONE",
+      "hit_count": 2,
+      "masked_text_contains": "138****8000"
+    }
+  },
+  {
+    "case_id": "phone_none",
+    "title": "文本中不包含手机号",
+    "marks": ["smoke", "security"],
+    "text": "今天天气不错，适合学习 pytest 自动化测试。",
+    "expected": {
+      "status_code": 200,
+      "is_sensitive": false,
+      "sensitive_type": null,
+      "hit_count": 0,
+      "masked_text_contains": "今天天气不错"
+    }
+  },
+  {
+    "case_id": "phone_invalid_prefix",
+    "title": "非法手机号前缀不应被识别",
+    "marks": ["regression", "security"],
+    "text": "这个号码是12800138000，不是合法手机号。",
+    "expected": {
+      "status_code": 200,
+      "is_sensitive": false,
+      "sensitive_type": null,
+      "hit_count": 0,
+      "masked_text_contains": "12800138000"
+    }
+  },
+  {
+    "case_id": "phone_short_number",
+    "title": "位数不足的号码不应被识别",
+    "marks": ["regression", "security"],
+    "text": "我的号码是13800138，位数不够。",
+    "expected": {
+      "status_code": 200,
+      "is_sensitive": false,
+      "sensitive_type": null,
+      "hit_count": 0,
+      "masked_text_contains": "13800138"
+    }
+  },
+  {
+    "case_id": "phone_embedded_in_long_number",
+    "title": "手机号嵌在长数字中不应被误识别",
+    "marks": ["regression", "security"],
+    "text": "订单号为99913800138000123，不应该把中间部分识别为手机号。",
+    "expected": {
+      "status_code": 200,
+      "is_sensitive": false,
+      "sensitive_type": null,
+      "hit_count": 0,
+      "masked_text_contains": "99913800138000123"
+    }
+  }
+]
