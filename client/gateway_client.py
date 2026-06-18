@@ -1,6 +1,8 @@
 import os
 import re
 import time
+import uuid
+from client.log_client import LogClient
 from typing import Any, Dict, Optional
 
 import requests
@@ -34,6 +36,8 @@ class GatewayClient:
             self.mock = os.getenv("AIGW_MOCK", "true").lower() == "true"
         else:
             self.mock = mock
+
+        self.log_client = LogClient()
 
         self.session = requests.Session()
         self.session.headers.update(
@@ -174,10 +178,13 @@ class GatewayClient:
     def _mock_detect_phone_security(self, text: str) -> Dict[str, Any]:
         """
         本地 mock 逻辑：
-        检测文本中是否存在中国大陆手机号格式。
+        检测文本中是否存在中国大陆手机号格式，并生成一条模拟 security_log。
         """
+        request_uuid = str(uuid.uuid4())
+        start_time = time.time()
+
         if not isinstance(text, str):
-            return {
+            result = {
                 "status_code": 400,
                 "is_sensitive": False,
                 "sensitive_type": None,
@@ -185,16 +192,22 @@ class GatewayClient:
                 "hit_count": 0,
                 "masked_text": "",
                 "message": "text must be string",
+                "uuid": request_uuid,
+                "elapsed": round(time.time() - start_time, 3),
+                "error": "text must be string",
             }
-        # 将匹配正则表达式的手机号放进列表中
+
+            self._write_mock_security_log(text, result)
+            return result
+
         phones = self.PHONE_PATTERN.findall(text)
 
         hits = []
         masked_text = text
 
-       #对号码以及原内容进行加工处理
         for phone in phones:
             masked_phone = self._mask_phone(phone)
+
             hits.append(
                 {
                     "type": "PHONE",
@@ -202,9 +215,10 @@ class GatewayClient:
                     "masked": masked_phone,
                 }
             )
-            masked_text = masked_text.replace(phone,masked_phone)
 
-        return {
+            masked_text = masked_text.replace(phone, masked_phone)
+
+        result = {
             "status_code": 200,
             "is_sensitive": len(hits) > 0,
             "sensitive_type": "PHONE" if hits else None,
@@ -212,7 +226,33 @@ class GatewayClient:
             "hit_count": len(hits),
             "masked_text": masked_text,
             "message": "success",
+            "uuid": request_uuid,
+            "elapsed": round(time.time() - start_time, 3),
+            "error": None,
         }
+
+        self._write_mock_security_log(text, result)
+
+        return result
+
+    def _write_mock_security_log(self, text: Any, result: Dict[str, Any]) -> None:
+        """
+        写入一条模拟 security_log。
+        """
+        log_record = {
+            "uuid": result.get("uuid"),
+            "api": "/api/v1/security/phone",
+            "request_content": text,
+            "status_code": result.get("status_code"),
+            "is_sensitive": result.get("is_sensitive"),
+            "sensitive_type": result.get("sensitive_type"),
+            "hit_count": result.get("hit_count"),
+            "elapsed": result.get("elapsed"),
+            "error": result.get("error"),
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+        self.log_client.store.append(log_record)
 
     @staticmethod
     def _mask_phone(phone: str) -> str:
