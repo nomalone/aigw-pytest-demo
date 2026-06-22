@@ -37,6 +37,15 @@ class SecurityLogStore:
 
         return None
 
+    def count_by_uuid(self, request_uuid: str) -> Optional[int]:
+        records = self._read_all()
+
+        return sum(
+            1 for record in records
+            if record.get("uuid") == request_uuid
+        )
+
+
     def clear(self) -> None:
         """
         清空本地模拟 security_log。
@@ -58,3 +67,9 @@ class LogClient:
             return None
 
         return self.store.find_by_uuid(request_uuid)
+
+    def count_by_uuid(self, request_uuid: str) -> Optional[int]:
+        if not request_uuid:
+            return 0
+
+        return self.store.count_by_uuid(request_uuid)
